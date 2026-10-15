@@ -4,7 +4,7 @@ DanceMirror 是一个基于 PyQt6 的比赛型多模态舞蹈训练桌面项目�
 
 ## 界面预览
 
-![DanceMirror 界面预览](ui-review.png)
+![DanceMirror 界面预览](project-interface.png)
 
 项目界面包含舞蹈包库、动作解析、机器人指挥中心、训练评分和安全控制等核心流程。
 
