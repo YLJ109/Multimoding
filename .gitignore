@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+
+# Application data
+data/
+outputs/
+logs/
+models/
+recordings/
+.runtime-smoke/
+
+# Local workspaces and generated collateral not part of the application
+_chatcut_mcp/
+_poster_test/
+_posters/
+_ppt/
+_ppt_master_repo/
+_review/
+.workbuddy/
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+Thumbs.db
+.DS_Store

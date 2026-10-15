@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>舞镜 2.0 · 物理可信舞蹈重定向演示台</title>
+<style>
+  :root {
+    --bg: #0d0f11;
+    --surface: #16191c;
+    --surface-2: #1d2126;
+    --line: rgba(255, 255, 255, 0.08);
+    --line-strong: rgba(255, 255, 255, 0.16);
+    --text: #e9ecef;
+    --muted: #98a0a6;
+    --dim: #6c747a;
+    --ok: #34d399;
+    --ok-soft: rgba(52, 211, 153, 0.12);
+    --bad: #f97362;
+    --bad-soft: rgba(249, 115, 98, 0.12);
+    --radius: 10px;
+    --radius-lg: 14px;
+    --mono: ui-monospace, "JetBrains Mono", Consolas, "Courier New", monospace;
+    --sans: "Microsoft YaHei UI", "PingFang SC", "Hiragino Sans GB", "Source Han Sans SC", sans-serif;
+    --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.6;
+    text-wrap: pretty;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1320px; margin: 0 auto; padding: 28px 28px 64px; }
+
+  header.top { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand .mark { width: 34px; height: 34px; border-radius: 9px; background: linear-gradient(140deg, var(--ok), #1f8f6b); position: relative; flex: none; }
+  .brand .mark::after { content: ""; position: absolute; inset: 9px 9px auto 9px; height: 2px; background: rgba(13,15,17,.75); border-radius: 2px; box-shadow: 0 5px 0 rgba(13,15,17,.75), 0 10px 0 rgba(13,15,17,.75); }
+  h1 { font-size: 19px; font-weight: 500; margin: 0; letter-spacing: .2px; }
+  .sub { color: var(--muted); font-size: 13px; margin: 3px 0 0; }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip { font-family: var(--mono); font-size: 11px; color: var(--muted); border: 1px solid var(--line-strong); border-radius: 999px; padding: 3px 10px; white-space: nowrap; }
+  .chip.ok { color: var(--ok); border-color: rgba(52,211,153,.35); background: var(--ok-soft); }
+  .chip.bad { color: var(--bad); border-color: rgba(249,115,98,.35); background: var(--bad-soft); }
+
+  .stage-card { margin-top: 22px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); overflow: hidden; }
+  .stage-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 13px 18px; border-bottom: 1px solid var(--line); }
+  .stage-head .t { font-size: 13px; color: var(--muted); }
+  .stage-head .t b { color: var(--text); font-weight: 500; }
+  .stage { position: relative; height: 460px; background: radial-gradient(120% 120% at 50% 0%, #14171a 0%, #0d0f11 70%); }
+  #scene { display: block; width: 100%; height: 100%; }
+  .divider { position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; background: var(--line); }
+  .pane-tag { position: absolute; top: 14px; display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; font-size: 12px; font-family: var(--mono); background: rgba(13,15,17,.72); border: 1px solid var(--line-strong); backdrop-filter: blur(6px); }
+  .pane-tag.left { left: 16px; color: var(--bad); }
+  .pane-tag.right { right: 16px; color: var(--ok); }
+  .pane-tag .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .watermark { position: absolute; left: 0; right: 0; bottom: 12px; text-align: center; font-family: var(--mono); font-size: 11px; color: var(--dim); pointer-events: none; }
+
+  .controls { display: flex; align-items: center; gap: 14px; padding: 13px 18px; border-top: 1px solid var(--line); flex-wrap: wrap; }
+  button.ctl { appearance: none; border: 1px solid var(--line-strong); background: var(--surface-2); color: var(--text); font-family: var(--sans); font-size: 13px; padding: 7px 15px; border-radius: 8px; cursor: pointer; transition: background 160ms var(--ease), border-color 160ms var(--ease); }
+  button.ctl:hover { background: #23282e; border-color: rgba(255,255,255,.26); }
+  button.ctl.primary { background: var(--ok); border-color: var(--ok); color: #06231a; font-weight: 500; }
+  button.ctl.primary:hover { background: #46e0aa; }
+  .scrub { flex: 1; min-width: 200px; height: 4px; border-radius: 999px; background: #262b31; position: relative; cursor: pointer; }
+  .scrub .fill { position: absolute; inset: 0 auto 0 0; width: 0%; background: var(--ok); border-radius: 999px; }
+  .scrub .head { position: absolute; top: 50%; left: 0%; width: 12px; height: 12px; border-radius: 50%; background: #fff; transform: translate(-50%, -50%); box-shadow: 0 0 0 3px rgba(52,211,153,.28); }
+  .scrub .plant { position: absolute; top: -3px; bottom: -3px; background: rgba(255,255,255,.10); border-radius: 2px; }
+  .mono-read { font-family: var(--mono); font-size: 12px; color: var(--muted); min-width: 118px; }
+
+  .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 22px; }
+  .metric { border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); padding: 16px 18px; }
+  .metric .name { font-size: 13px; color: var(--muted); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .metric .unit { font-family: var(--mono); font-size: 11px; color: var(--dim); }
+  .metric .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 12px; }
+  .metric .cell .lbl { font-size: 11px; font-family: var(--mono); }
+  .metric .cell .lbl.bad { color: var(--bad); }
+  .metric .cell .lbl.ok { color: var(--ok); }
+  .metric .cell .val { font-family: var(--mono); font-size: 24px; font-variant-numeric: tabular-nums; letter-spacing: -.4px; margin-top: 2px; }
+  .metric .cell .val.ok { color: var(--ok); }
+  .delta { margin-top: 12px; padding-top: 11px; border-top: 1px dashed var(--line); display: flex; align-items: baseline; gap: 8px; }
+  .delta .n { font-family: var(--mono); font-size: 13px; color: var(--ok); }
+  .delta .d { font-size: 12px; color: var(--dim); }
+
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 30px; }
+  .card { border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); padding: 18px; transition: border-color 180ms var(--ease), transform 180ms var(--ease); }
+  .card:hover { border-color: rgba(255,255,255,.2); transform: translateY(-2px); }
+  .card .idx { font-family: var(--mono); font-size: 11px; color: var(--ok); }
+  .card h3 { font-size: 15px; font-weight: 500; margin: 8px 0 6px; }
+  .card p { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.65; }
+  .card .kpi { margin-top: 12px; font-family: var(--mono); font-size: 11px; color: var(--dim); border-top: 1px dashed var(--line); padding-top: 10px; }
+
+  .note { margin-top: 22px; border: 1px solid var(--line); border-left: 2px solid var(--ok); border-radius: var(--radius); background: var(--surface); padding: 14px 18px; font-size: 13px; color: var(--muted); }
+  .note b { color: var(--text); font-weight: 500; }
+
+  @media (max-width: 900px) {
+    .metrics, .cards { grid-template-columns: 1fr; }
+    .stage { height: 380px; }
+    .wrap { padding: 20px 16px 48px; }
+    header.top { flex-direction: column; align-items: flex-start; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+<script type="importmap">
+  {"imports": {"three": "./three.module.min.js"}}
+</script>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div class="brand">
+      <div class="mark"></div>
+      <div>
+        <h1>舞镜 2.0 · 物理可信舞蹈重定向</h1>
+        <p class="sub">同一段单目姿态输入，两种重定向策略的对照实验台</p>
+      </div>
+    </div>
+    <div class="chips">
+      <span class="chip">毕设 Demo v0</span>
+      <span class="chip" id="model-chip">模型加载中…</span>
+      <span class="chip" id="fps-chip">-- FPS</span>
+    </div>
+  </header>
+
+  <section class="stage-card">
+    <div class="stage-head">
+      <div class="t">输入：<b>模拟单目姿态</b>（含脚部抖动、穿地、重心偏移噪声）· 两种方法消费同一份输入</div>
+      <div class="mono-read" id="time-read">t = 0.00s</div>
+    </div>
+
+    <div class="stage">
+      <canvas id="scene"></canvas>
+      <div class="divider"></div>
+      <div class="pane-tag left"><span class="dot"></span>纯几何重定向 · 基线</div>
+      <div class="pane-tag right"><span class="dot"></span>接触感知重定向 · 本方案</div>
+      <div class="watermark">脚踝环亮起 = 检测到接触　|　拖动鼠标可旋转视角</div>
+    </div>
+
+    <div class="controls">
+      <button class="ctl primary" id="btn-play">暂停</button>
+      <button class="ctl" id="btn-reset">回到起点</button>
+      <button class="ctl" id="btn-speed">1.0×</button>
+      <div class="scrub" id="scrub">
+        <div class="fill" id="scrub-fill"></div>
+        <div class="head" id="scrub-head"></div>
+      </div>
+      <div class="mono-read" id="frame-read">帧 0 / 0</div>
+    </div>
+  </section>
+
+  <section class="metrics">
+    <div class="metric">
+      <div class="name">脚滑量 <span class="unit">cm / 帧 · 接触相位内</span></div>
+      <div class="pair">
+        <div class="cell"><div class="lbl bad">纯几何</div><div class="val" id="m-slide-geo">--</div></div>
+        <div class="cell"><div class="lbl ok">接触感知</div><div class="val ok" id="m-slide-new">--</div></div>
+      </div>
+      <div class="delta"><span class="n" id="d-slide">--</span><span class="d">降幅</span></div>
+    </div>
+    <div class="metric">
+      <div class="name">穿地深度 <span class="unit">cm · 均值</span></div>
+      <div class="pair">
+        <div class="cell"><div class="lbl bad">纯几何</div><div class="val" id="m-pen-geo">--</div></div>
+        <div class="cell"><div class="lbl ok">接触感知</div><div class="val ok" id="m-pen-new">--</div></div>
+      </div>
+      <div class="delta"><span class="n" id="d-pen">--</span><span class="d">降幅</span></div>
+    </div>
+    <div class="metric">
+      <div class="name">重心越界率 <span class="unit">% 帧 · 支撑多边形外</span></div>
+      <div class="pair">
+        <div class="cell"><div class="lbl bad">纯几何</div><div class="val" id="m-com-geo">--</div></div>
+        <div class="cell"><div class="lbl ok">接触感知</div><div class="val ok" id="m-com-new">--</div></div>
+      </div>
+      <div class="delta"><span class="n" id="d-com">--</span><span class="d">降幅</span></div>
+    </div>
+  </section>
+
+  <section class="cards">
+    <div class="card">
+      <div class="idx">创新点 01</div>
+      <h3>接触感知的舞蹈重定向</h3>
+      <p>用脚踝高度 + 速度 + 悬空时长做带滞回的接触状态机；接触相位内锁定脚的世界位置（脚锁定），并把重心投影约束在支撑多边形内，消除纯几何法必然产生的脚滑、穿地、失衡。</p>
+      <div class="kpi">指标：脚滑量 / 穿地深度 / 重心越界率</div>
+    </div>
+    <div class="card">
+      <div class="idx">创新点 02</div>
+      <h3>四维表现力评估</h3>
+      <p>在"位置相似"之外引入节奏相位对齐、动力学（力度与延伸）、流畅度（jerk 与停顿）三个维度，把评价从"动作像不像"升级为"跳得好不好"，并输出可解释的分维雷达。</p>
+      <div class="kpi">指标：与人工评分相关性 · 分维消融</div>
+    </div>
+    <div class="card">
+      <div class="idx">创新点 03</div>
+      <h3>差异驱动的自动示范闭环</h3>
+      <p>定位你与标准动作的差异（分关节、分阶段），由 3D 机器人分段慢放示范并高亮差异关节，配合 LLM 讲解，形成"学 → 评 → 纠 → 再学"的可测量闭环。</p>
+      <div class="kpi">指标：示范前后评分提升 · 控制组对比</div>
+    </div>
+  </section>
+
+  <div class="note">
+    <b>关于本演示的诚实说明：</b>当前为纯前端仿真（无后端），输入为程序化生成的模拟单目姿态，脚部噪声为人为注入以复现真实单目姿态估计的抖动与穿地现象；两种策略消费同一输入，指标由同一套公式计算，因此差异来自<b>算法本身</b>而非数据。后续版本将接入真实推理服务（FastAPI + BlazePose）。
+  </div>
+
+</div>
+<script type="module" src="./app.js"></script>
+</body>
+</html>

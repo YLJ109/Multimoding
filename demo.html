@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>舞镜 · 物理可信重定向对比演示</title>
+<style>
+  :root{
+    --bg:#0d0f11; --panel:#16191c; --panel2:#1d2126;
+    --line:rgba(255,255,255,.09); --line2:rgba(255,255,255,.18);
+    --text:#e9ecef; --muted:#98a0a6; --dim:#6c747a;
+    --ok:#34d399; --okS:rgba(52,211,153,.12);
+    --bad:#f97362; --badS:rgba(249,115,98,.12);
+    --mono:ui-monospace,Consolas,"Courier New",monospace;
+    --sans:"Microsoft YaHei UI","PingFang SC","Hiragino Sans GB",sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.6 var(--sans);-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1240px;margin:0 auto;padding:26px 24px 56px}
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;padding-bottom:18px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  h1{font-size:19px;font-weight:500;margin:0}
+  .sub{color:var(--muted);font-size:13px;margin:4px 0 0}
+  .chip{font-family:var(--mono);font-size:11px;color:var(--muted);border:1px solid var(--line2);border-radius:999px;padding:3px 10px}
+  .stage{margin-top:20px;border:1px solid var(--line);border-radius:14px;background:var(--panel);overflow:hidden}
+  .stage-head{display:flex;justify-content:space-between;gap:14px;padding:12px 18px;border-bottom:1px solid var(--line);font-size:13px;color:var(--muted)}
+  .stage-head b{color:var(--text);font-weight:500}
+  .view{position:relative;height:440px;background:radial-gradient(120% 120% at 50% 0%,#14171a 0%,#0d0f11 72%)}
+  canvas{display:block;width:100%;height:100%}
+  .split{position:absolute;top:0;bottom:0;left:50%;width:1px;background:var(--line)}
+  .tag{position:absolute;top:14px;display:flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;font:12px var(--mono);background:rgba(13,15,17,.75);border:1px solid var(--line2);backdrop-filter:blur(6px)}
+  .tag.l{left:16px;color:var(--bad)} .tag.r{right:16px;color:var(--ok)}
+  .dot{width:7px;height:7px;border-radius:50%;background:currentColor}
+  .hint{position:absolute;left:0;right:0;bottom:10px;text-align:center;font:11px var(--mono);color:var(--dim);pointer-events:none}
+  .bar{display:flex;align-items:center;gap:12px;padding:12px 18px;border-top:1px solid var(--line);flex-wrap:wrap}
+  button{appearance:none;border:1px solid var(--line2);background:var(--panel2);color:var(--text);font:13px var(--sans);padding:7px 15px;border-radius:8px;cursor:pointer;transition:background .16s,border-color .16s}
+  button:hover{background:#23282e;border-color:rgba(255,255,255,.28)}
+  button.p{background:var(--ok);border-color:var(--ok);color:#06231a;font-weight:500}
+  button.p:hover{background:#46e0aa}
+  .scrub{flex:1;min-width:180px;height:4px;border-radius:999px;background:#262b31;position:relative;cursor:pointer}
+  .scrub i{position:absolute;inset:0 auto 0 0;width:0;background:var(--ok);border-radius:999px}
+  .scrub u{position:absolute;top:50%;left:0;width:12px;height:12px;border-radius:50%;background:#fff;transform:translate(-50%,-50%);box-shadow:0 0 0 3px rgba(52,211,153,.28)}
+  .read{font:12px var(--mono);color:var(--muted);min-width:104px}
+  .metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:20px}
+  .m{border:1px solid var(--line);border-radius:14px;background:var(--panel);padding:16px 18px}
+  .m .n{font-size:13px;color:var(--muted);display:flex;justify-content:space-between;gap:8px}
+  .m .u{font:11px var(--mono);color:var(--dim)}
+  .pair{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:12px}
+  .k{font:11px var(--mono)} .k.b{color:var(--bad)} .k.g{color:var(--ok)}
+  .v{font:24px var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-.4px}
+  .v.g{color:var(--ok)}
+  .d{margin-top:12px;padding-top:11px;border-top:1px dashed var(--line);display:flex;gap:8px;align-items:baseline}
+  .d b{font:13px var(--mono);color:var(--ok)} .d span{font-size:12px;color:var(--dim)}
+  .note{margin-top:20px;border:1px solid var(--line);border-left:2px solid var(--ok);border-radius:10px;background:var(--panel);padding:13px 18px;font-size:13px;color:var(--muted)}
+  .note b{color:var(--text);font-weight:500}
+  @media(max-width:880px){.metrics{grid-template-columns:1fr}.view{height:360px}}
+</style>
+<script type="importmap">
+{"imports":{"three":"./src/dance_mirror/resources/three.module.min.js"}}
+</script>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>舞镜 · 物理可信舞蹈重定向</h1>
+      <p class="sub">同一段单目姿态输入，两种重定向策略对照</p>
+    </div>
+    <div><span class="chip" id="fps">-- FPS</span></div>
+  </header>
+
+  <div class="stage">
+    <div class="stage-head">
+      <div>输入：<b>模拟单目姿态</b>（含脚部抖动 / 穿地 / 重心偏移噪声）· 两侧消费同一份输入</div>
+      <div class="read" id="time">t = 0.00s</div>
+    </div>
+    <div class="view">
+      <canvas id="cv"></canvas>
+      <div class="split"></div>
+      <div class="tag l"><span class="dot"></span>纯几何重定向 · 基线</div>
+      <div class="tag r"><span class="dot"></span>接触感知重定向 · 本方案</div>
+      <div class="hint">脚踝环亮起 = 检测到接触　·　黄点 = 重心　·　地面色条 = 支撑区间</div>
+    </div>
+    <div class="bar">
+      <button class="p" id="play">暂停</button>
+      <button id="reset">回到起点</button>
+      <button id="speed">1.0×</button>
+      <div class="scrub" id="sc"><i id="sf"></i><u id="sh"></u></div>
+      <div class="read" id="fr">帧 0 / 0</div>
+    </div>
+  </div>
+
+  <div class="metrics">
+    <div class="m">
+      <div class="n">脚滑量 <span class="u">cm / 帧 · 接触相位内</span></div>
+      <div class="pair">
+        <div><div class="k b">纯几何</div><div class="v" id="a1">--</div></div>
+        <div><div class="k g">接触感知</div><div class="v g" id="b1">--</div></div>
+      </div>
+      <div class="d"><b id="d1">--</b><span>降幅</span></div>
+    </div>
+    <div class="m">
+      <div class="n">穿地深度 <span class="u">cm · 均值</span></div>
+      <div class="pair">
+        <div><div class="k b">纯几何</div><div class="v" id="a2">--</div></div>
+        <div><div class="k g">接触感知</div><div class="v g" id="b2">--</div></div>
+      </div>
+      <div class="d"><b id="d2">--</b><span>降幅</span></div>
+    </div>
+    <div class="m">
+      <div class="n">重心越界率 <span class="u">% 帧 · 支撑区间外</span></div>
+      <div class="pair">
+        <div><div class="k b">纯几何</div><div class="v" id="a3">--</div></div>
+        <div><div class="k g">接触感知</div><div class="v g" id="b3">--</div></div>
+      </div>
+      <div class="d"><b id="d3">--</b><span>降幅</span></div>
+    </div>
+  </div>
+
+  <div class="note">
+    <b>诚实说明：</b>单文件纯前端仿真，无后端。输入为程序化生成的模拟单目姿态，脚部噪声为人为注入以复现真实单目姿态估计的抖动与穿地；两侧消费<b>同一输入</b>、指标由<b>同一套公式</b>计算，因此差异来自算法本身。后续版本接入 FastAPI + BlazePose 真实推理。
+  </div>
+</div>
+
+<script type="module">
+import * as THREE from "three";
+
+const DT=1/30, DUR=4, N=120, G=0.02;
+const C={l:0x9aa3ad, g:0x34d399, bad:0xf97362, com:0xfacc15};
+const V=(x,y,z)=>new THREE.Vector3(x,y,z);
+const cl=(v,a,b)=>Math.min(b,Math.max(a,v));
+const c01=v=>cl(v,0,1);
+const ss=(a,b,x)=>{const t=c01((x-a)/(b-a));return t*t*(3-2*t)};
+
+/* ---------- 1. 合成单目姿态（含噪声） ---------- */
+const arc=(p,a,b)=>(p<a||p>b)?0:Math.sin(Math.PI*((p-a)/(b-a)));
+
+function makeFrame(i){
+  const t=i*DT, p=(t/DUR)%1;
+  const rLift=arc(p,.10,.30), lLift=arc(p,.60,.80);
+  const rPlant=rLift<=1e-6, lPlant=lLift<=1e-6;
+
+  const jitter=0.012*Math.sin(2*Math.PI*7*t);
+  const drift =0.018*Math.sin(2*Math.PI*0.5*t);
+  const sink  =0.045*Math.pow(Math.max(0,Math.sin(2*Math.PI*2.5*t)),1.6);
+
+  const hips=V(0.055*Math.sin(2*Math.PI*p)+0.012*Math.sin(6*Math.PI*p), 0.92+0.02*Math.sin(4*Math.PI*p), 0);
+  const lHip=V(hips.x+0.085,hips.y-0.045,0), rHip=V(hips.x-0.085,hips.y-0.045,0);
+  const lAnk=V(0.115+(lPlant?jitter+drift:0), 0.02+0.058*lLift-(lPlant?sink:0), 0);
+  const rAnk=V(-0.115-(rPlant?jitter+drift:0), 0.02+0.058*rLift-(rPlant?sink:0), 0);
+  const bend=L=>0.032+0.055*L;
+  const lKnee=lHip.clone().lerp(lAnk,.5).add(V(0.02,0,bend(lLift)));
+  const rKnee=rHip.clone().lerp(rAnk,.5).add(V(-0.02,0,bend(rLift)));
+
+  const shC=V(hips.x*0.55+0.02*Math.sin(2*Math.PI*p),1.44,0);
+  const lSh=V(shC.x+0.17,1.43,0), rSh=V(shC.x-0.17,1.43,0);
+  const wL=0.5+0.5*Math.sin(2*Math.PI*p), wR=0.5+0.5*Math.sin(2*Math.PI*p+Math.PI);
+  const loL=V(0.30,1.04,0.05), hiL=V(0.36,1.63,0.06);
+  const loR=V(-0.30,1.04,0.05), hiR=V(-0.36,1.63,0.06);
+  const lWr=loL.clone().lerp(hiL,ss(.1,.9,wL)), rWr=loR.clone().lerp(hiR,ss(.1,.9,wR));
+  const elbow=(s,w)=>s.clone().lerp(w,.52).add(V(Math.sign(s.x)*0.055,0,0.07));
+  return {t,plant:{l:lPlant,r:rPlant},j:{
+    hips, nose:V(shC.x+0.04*Math.sin(2*Math.PI*p),1.68,0),
+    leftShoulder:lSh,rightShoulder:rSh,
+    leftElbow:elbow(lSh,lWr),rightElbow:elbow(rSh,rWr),
+    leftWrist:lWr,rightWrist:rWr,leftHip:lHip,rightHip:rHip,
+    leftKnee:lKnee,rightKnee:rKnee,leftAnkle:lAnk,rightAnkle:rAnk
+  }};
+}
+const input=[]; for(let i=0;i<N;i++) input.push(makeFrame(i));
+
+/* ---------- 2. 接触检测（带滞回） ---------- */
+function contacts(frames){
+  const st={l:false,r:false}, an={l:null,r:null}, out=[]; let prev=null;
+  for(const f of frames){
+    const e={};
+    for(const k of ["l","r"]){
+      const side=k==="l"?"left":"right";
+      const a=f.j[side+"Ankle"], p=prev?prev.j[side+"Ankle"]:a;
+      const sp=a.distanceTo(p)/DT, ground=a.y<0.045, slow=sp<0.45;
+      if(!st[k]){ if(ground&&slow){ st[k]=true; an[k]={x:a.x,z:a.z}; } }
+      else if(a.y>0.065||sp>0.9){ st[k]=false; an[k]=null; }
+      e[k]=st[k]; e[k+"A"]=an[k]?{...an[k]}:null;
+    }
+    out.push(e); prev=f;
+  }
+  return out;
+}
+const CT=contacts(input);
+
+/* ---------- 3. 两种重定向 ---------- */
+const clone=j=>{const o={};for(const k in j)o[k]=j[k].clone();return o};
+const support=(j,tr)=>{
+  const xs=[]; if(tr.l)xs.push(j.leftAnkle.x); if(tr.r)xs.push(j.rightAnkle.x);
+  if(!xs.length) return null;
+  if(xs.length===1) return [xs[0]-0.07,xs[0]+0.07];
+  return [Math.min(...xs)-0.05,Math.max(...xs)+0.05];
+};
+const shift=(j,dx)=>{ if(Math.abs(dx)<1e-6)return;
+  for(const k of ["hips","nose","leftShoulder","rightShoulder","leftElbow","rightElbow","leftWrist","rightWrist","leftHip","rightHip","leftKnee","rightKnee"]) j[k].x+=dx; };
+
+const geo=input.map(f=>({j:clone(f.j),plant:f.plant}));
+
+const aware=input.map((f,i)=>{
+  const j=clone(f.j), c=CT[i];
+  for(const k of ["l","r"]){
+    const side=k==="l"?"left":"right", ak=side+"Ankle";
+    if(c[k]&&c[k+"A"]){ j[ak].x=c[k+"A"].x; j[ak].z=c[k+"A"].z; j[ak].y=G; }
+    j[side+"Knee"]=j[side+"Hip"].clone().lerp(j[ak],.5).add(V(k==="l"?0.02:-0.02,0,0.032));
+  }
+  const rg=support(j,f.plant);
+  if(rg){
+    const com=j.hips.x;
+    const want=cl(com,rg[0],rg[1]);
+    let dx=want-com;
+    dx=cl(dx,-0.09,0.09);
+    shift(j,dx);
+  }
+  return {j,plant:f.plant};
+});
+
+/* ---------- 4. 指标 ---------- */
+function metrics(res){
+  let sl=0,slN=0,pen=0,penN=0,bad=0,comN=0;
+  res.forEach((f,i)=>{
+    const p=i>0?res[i-1].j:null;
+    for(const k of ["l","r"]){
+      const side=k==="l"?"left":"right", ak=side+"Ankle";
+      pen+=Math.max(0,G-f.j[ak].y)*100; penN++;
+      if(f.plant[k]&&p){ sl+=Math.hypot(f.j[ak].x-p[ak].x,f.j[ak].z-p[ak].z)*100; slN++; }
+    }
+    const rg=support(f.j,f.plant);
+    if(rg){ comN++; if(f.j.hips.x<rg[0]||f.j.hips.x>rg[1]) bad++; }
+  });
+  return {slide:slN?sl/slN:0, pen:penN?pen/penN:0, com:comN?100*bad/comN:0};
+}
+const M={geo:metrics(geo), aware:metrics(aware)};
+
+/* ---------- 5. 场景 ---------- */
+const cv=document.getElementById("cv");
+const renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x0d0f11);
+scene.fog=new THREE.Fog(0x0d0f11,5.5,12);
+scene.add(new THREE.HemisphereLight(0xcfe6ff,0x0a0d10,1.1));
+const key=new THREE.DirectionalLight(0xffffff,1.1); key.position.set(2,5,4); scene.add(key);
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(16,16),new THREE.MeshBasicMaterial({color:0x12161a}));
+ground.rotation.x=-Math.PI/2; ground.position.y=G-0.002; scene.add(ground);
+const grid=new THREE.GridHelper(16,32,0x2b333a,0x1a1f24); grid.position.y=G; scene.add(grid);
+
+const EDGES=[["hips","leftShoulder"],["hips","rightShoulder"],["leftShoulder","rightShoulder"],
+  ["hips","nose"],["leftShoulder","leftElbow"],["leftElbow","leftWrist"],
+  ["rightShoulder","rightElbow"],["rightElbow","rightWrist"],
+  ["hips","leftHip"],["hips","rightHip"],["leftHip","rightHip"],
+  ["leftHip","leftKnee"],["leftKnee","leftAnkle"],["rightHip","rightKnee"],["rightKnee","rightAnkle"]];
+const DOTS=["hips","nose","leftShoulder","rightShoulder","leftElbow","rightElbow","leftWrist","rightWrist","leftKnee","rightKnee","leftAnkle","rightAnkle"];
+
+function makeBody(color){
+  const g=new THREE.Group();
+  const segCount=EDGES.length+2;
+  const geom=new THREE.BufferGeometry();
+  geom.setAttribute("position",new THREE.BufferAttribute(new Float32Array(segCount*2*3),3));
+  g.add(new THREE.LineSegments(geom,new THREE.LineBasicMaterial({color,transparent:true,opacity:.95})));
+  const dotGeom=new THREE.SphereGeometry(0.019,10,10);
+  const dotMat=new THREE.MeshBasicMaterial({color});
+  const dots=DOTS.map(()=>{const m=new THREE.Mesh(dotGeom,dotMat);g.add(m);return m;});
+  const ring=new THREE.Mesh(new THREE.RingGeometry(0.05,0.075,26),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.9,side:THREE.DoubleSide}));
+  ring.rotation.x=-Math.PI/2; g.add(ring);
+  const ring2=ring.clone(); g.add(ring2);
+  const com=new THREE.Mesh(new THREE.SphereGeometry(0.03,12,12),new THREE.MeshBasicMaterial({color:C.com}));
+  g.add(com);
+  const bar=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),new THREE.MeshBasicMaterial({color:C.g,transparent:true,opacity:.3}));
+  bar.scale.set(.2,.003,.28); g.add(bar);
+  return {g,geom,dots,ring,ring2,com,bar};
+}
+const L=makeBody(0x8b939c), R=makeBody(C.g);
+L.g.position.x=-0.82; R.g.position.x=0.82;
+scene.add(L.g,R.g);
+
+const camera=new THREE.PerspectiveCamera(30,1,.1,40);
+camera.position.set(0,1.22,2.85); camera.lookAt(0,0.76,0);
+let yaw=0,pitch=0;
+cv.addEventListener("pointerdown",e=>{cv.setPointerCapture(e.pointerId);cv._d={x:e.clientX,y:e.clientY}});
+cv.addEventListener("pointermove",e=>{ if(!cv._d)return;
+  yaw=cl(yaw+(e.clientX-cv._d.x)*.006,-.85,.85); pitch=cl(pitch+(e.clientY-cv._d.y)*.004,-.2,.5);
+  cv._d={x:e.clientX,y:e.clientY}; });
+addEventListener("pointerup",()=>{cv._d=null});
+
+function draw(body,frame,contact,isAware){
+  const j=frame.j, segs=body.geom.attributes.position.array; let c=0;
+  const put=(p,q)=>{ segs[c++]=p.x;segs[c++]=p.y;segs[c++]=p.z; segs[c++]=q.x;segs[c++]=q.y;segs[c++]=q.z; };
+  for(const [a,b] of EDGES) put(j[a],j[b]);
+  put(j.leftAnkle, j.leftAnkle.clone().add(V(0,G-j.leftAnkle.y,0.115)));
+  put(j.rightAnkle, j.rightAnkle.clone().add(V(0,G-j.rightAnkle.y,0.115)));
+  body.geom.attributes.position.needsUpdate=true;
+  DOTS.forEach((k,i)=>body.dots[i].position.copy(j[k]));
+
+  let side=0;
+  for(const k of ["l","r"]){
+    const ak=(k==="l"?"left":"right")+"Ankle";
+    const on=contact[k];
+    const ring=side++===0?body.ring:body.ring2;
+    ring.position.set(j[ak].x, G+0.004, j[ak].z);
+    ring.material.opacity=on?0.95:0.16;
+    ring.material.color.setHex(on?C.g:C.l);
+  }
+  body.com.position.copy(j.hips);
+  const rg=support(j,frame.plant);
+  if(rg){ const w=Math.max(.05,rg[1]-rg[0]);
+    body.bar.visible=true;
+    body.bar.position.set((rg[0]+rg[1])/2,G+0.003,0.03);
+    body.bar.scale.set(w,.003,.28);
+    body.bar.material.color.setHex(j.hips.x>=rg[0]&&j.hips.x<=rg[1]?C.g:C.bad);
+  } else body.bar.visible=false;
+}
+
+function layout(){ const r=cv.getBoundingClientRect();
+  const w=Math.max(1,Math.floor(r.width)), h=Math.max(1,Math.floor(r.height));
+  renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix(); }
+addEventListener("resize",layout); layout();
+
+/* ---------- 6. 循环与 UI ---------- */
+let playing=true, speed=1, idx=0, acc=0, fN=0, fT=performance.now();
+const clock=new THREE.Clock();
+
+const q=new URLSearchParams(location.search);
+if(q.has("t")){ idx=cl(Math.round((parseFloat(q.get("t"))||0)/DT),0,N-1); playing=false; }
+document.getElementById("play").textContent=playing?"暂停":"播放";
+
+document.getElementById("play").onclick=e=>{ playing=!playing; e.target.textContent=playing?"暂停":"播放"; };
+document.getElementById("reset").onclick=()=>{ idx=0; };
+document.getElementById("speed").onclick=e=>{ speed=speed===1?0.35:1; e.target.textContent=speed===1?"1.0×":"0.35× 慢放"; };
+const sc=document.getElementById("sc");
+const seek=e=>{ const r=sc.getBoundingClientRect(); idx=Math.round(c01((e.clientX-r.left)/r.width)*(N-1)); };
+sc.addEventListener("pointerdown",e=>{seek(e);sc.setPointerCapture(e.pointerId)});
+sc.addEventListener("pointermove",e=>{ if(sc.hasPointerCapture(e.pointerId)) seek(e); });
+
+const f=(v,d=2)=>Number.isFinite(v)?v.toFixed(d):"--";
+function paint(){
+  const pct=(a,b)=>a<=1e-6?(b<=1e-6?"0%":"-"):Math.round((1-b/a)*100)+"%";
+  document.getElementById("a1").textContent=f(M.geo.slide);
+  document.getElementById("b1").textContent=f(M.aware.slide);
+  document.getElementById("a2").textContent=f(M.geo.pen);
+  document.getElementById("b2").textContent=f(M.aware.pen);
+  document.getElementById("a3").textContent=f(M.geo.com,1);
+  document.getElementById("b3").textContent=f(M.aware.com,1);
+  document.getElementById("d1").textContent=pct(M.geo.slide,M.aware.slide);
+  document.getElementById("d2").textContent=pct(M.geo.pen,M.aware.pen);
+  document.getElementById("d3").textContent=pct(M.geo.com,M.aware.com);
+}
+paint();
+
+function tick(){
+  requestAnimationFrame(tick);
+  const dt=Math.min(clock.getDelta(),.1);
+  if(playing){ acc+=dt*speed; while(acc>=DT){acc-=DT; idx=(idx+1)%N;} }
+
+  draw(L,geo[idx],CT[idx],false);
+  draw(R,aware[idx],CT[idx],true);
+
+  camera.position.x=Math.sin(yaw)*2.85;
+  camera.position.z=Math.cos(yaw)*2.85;
+  camera.position.y=1.22+2.85*(pitch*0.7);
+  camera.lookAt(0,0.76,0);
+  renderer.render(scene,camera);
+
+  const r=idx/(N-1);
+  document.getElementById("sf").style.width=(r*100)+"%";
+  document.getElementById("sh").style.left=(r*100)+"%";
+  document.getElementById("time").textContent="t = "+(idx*DT).toFixed(2)+"s";
+  document.getElementById("fr").textContent="帧 "+idx+" / "+(N-1);
+
+  fN++; const now=performance.now();
+  if(now-fT>=500){ document.getElementById("fps").textContent=Math.round(fN*1000/(now-fT))+" FPS"; fN=0; fT=now; }
+}
+tick();
+</script>
+</body>
+</html>
